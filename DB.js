@@ -1,4 +1,3 @@
-const res = require("express/lib/response");
 const mysql = require("mysql");
 const connection = mysql.createConnection({
   host: "localhost",
@@ -8,29 +7,52 @@ const connection = mysql.createConnection({
 });
 
 const Response = class {
-  constructor(_status, _data, _message) {
-    this.status = _status;
+  constructor(_data) {
     this.data = _data;
-    this.message = _message;
+  }
+  sendResponse(res) {
+    res.send({
+      data: this.data,
+      status: this.status,
+      message: this.message,
+    });
+  }
+  OK(res) {
+    res.status(200);
+    this.status = 200;
+    this.message = null;
+    console.log(this);
+    this.sendResponse(res);
+  }
+  badRequest(res) {
+    res.status(400);
+    this.status = 400;
+    this.message = "유효하지 않은 요청";
+    this.sendResponse(res);
+  }
+  notFound(res) {
+    res.status(404);
+    this.status = 404;
+    this.message = "해당 데이터 없음";
+    this.sendResponse(res);
+  }
+  internalServerError(res) {
+    res.status(500);
+    this.status = 500;
+    this.message = "500";
   }
 };
 
 const query = async function (sql) {
-  try {
-    let promise = new Promise((resolve, reject) => {
-      connection.query(sql, (err, rows, fields) => {
-        if (err) {
-          reject(err);
-        }
-        resolve(rows);
-      });
+  let promise = new Promise((resolve, reject) => {
+    connection.query(sql, (err, rows, fields) => {
+      if (err) {
+        reject(err);
+      }
+      resolve(rows);
     });
-    let rs = await promise;
-    return rs;
-  } catch (err) {
-    console.log(err);
-    return null;
-  }
+  })
+  return await promise;
 };
 
 const where = function (objArr) {
@@ -62,8 +84,7 @@ module.exports.accounts = {
   //
   login: function (obj, res) {
     if (!isValid(obj, "object", 2)) {
-      res.status(400);
-      res.send(new Response(400, null, "잘못된 요청"));
+      new Response().badRequest(res);
       return false;
     }
     let sql = `
@@ -78,24 +99,20 @@ module.exports.accounts = {
     query(sql)
       .then((r) => {
         if (r.length == 0) {
-          res.status(404);
-          res.send(new Response(404, null, "일치하는 정보 없음"));
+          new Response.notFound();
         } else {
-          res.status(200);
-          res.send(new Response(200, r, null));
+          new Response(r).OK(res);
         }
       })
       .catch((err) => {
         console.log(err);
-        res.status(500);
-        res.send(new Response(500, null, "500"));
+        new Response().internalServerError(res);
       });
   },
 
   register: function (argArr, res) {
     if (!isValid(argArr, "array", 4)) {
-      res.status(400);
-      res.send(new Response(400, null, "잘못된 요청"));
+      new Response().badRequest(res);
       return false;
     }
     let sql = `
@@ -118,26 +135,20 @@ module.exports.accounts = {
     query(sql)
       .then((r) => {
         if (r.affectedRows == 0) {
-          res.status(404);
-          res.send(new Response(404, null, "일치하는 정보 없음"));
+          new Response().notFound(res);
         } else {
-          res.status(200);
-          res.send(
-            new Response(200, r.affectedRows, `${r.affectedRows}건 등록`)
-          );
+          new Response(r).OK(res);
         }
       })
       .catch((err) => {
         console.log(err);
-        res.status(500);
-        res.send(new Response(500, null, "500"));
+        new Response().internalServerError(res);
       });
   },
 
   changePassword: function (obj, res) {
     if (!isValid(obj, "object", 3)) {
-      res.status(400);
-      res.send(new Response(400, null, "잘못된 요청"));
+      new Response().badRequest(res);
       return false;
     }
     let sql = `
@@ -161,7 +172,7 @@ module.exports.accounts = {
       })
       .catch((err) => {
         console.log(err);
-        res.send(new Response(500, null, "500"));
+        new Response().internalServerError(res);
       });
   },
 };
