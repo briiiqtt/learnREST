@@ -6,42 +6,8 @@ const connection = mysql.createConnection({
   database: "aig_server_demo",
 });
 
-const Response = class {
-  constructor(_data) {
-    this.data = _data;
-  }
-  sendResponse(res) {
-    res.send({
-      data: this.data,
-      status: this.status,
-      message: this.message,
-    });
-  }
-  OK(res) {
-    res.status(200);
-    this.status = 200;
-    this.message = null;
-    console.log(this);
-    this.sendResponse(res);
-  }
-  badRequest(res) {
-    res.status(400);
-    this.status = 400;
-    this.message = "유효하지 않은 요청";
-    this.sendResponse(res);
-  }
-  notFound(res) {
-    res.status(404);
-    this.status = 404;
-    this.message = "해당 데이터 없음";
-    this.sendResponse(res);
-  }
-  internalServerError(res) {
-    res.status(500);
-    this.status = 500;
-    this.message = "500";
-  }
-};
+const DB_NAMESPACE = require("./DB_NAMESPACE");
+const Response = require("./Response");
 
 const query = async function (sql) {
   let promise = new Promise((resolve, reject) => {
@@ -51,7 +17,7 @@ const query = async function (sql) {
       }
       resolve(rows);
     });
-  })
+  });
   return await promise;
 };
 
@@ -80,14 +46,19 @@ const isValid = function (obj, type, argCnt) {
   }
 };
 
-module.exports.accounts = {
-  //
-  login: function (obj, res) {
-    if (!isValid(obj, "object", 2)) {
-      new Response().badRequest(res);
-      return false;
-    }
-    let sql = `
+const DB = {
+  accounts: {
+    //
+    login: function (obj, res) {
+      if (!isValid(obj, "object", 2)) {
+        new Response(res).badRequest(DB_NAMESPACE.RES_MSG.IS_NOT_VALID);
+        return false;
+      }
+      if (!(obj.ACCOUNT_UUID && obj.PASSWORD)) {
+        new Response(res).badRequest(DB_NAMESPACE.RES_MSG.INSUFFICIENT_VALUE);
+        return false;
+      }
+      let sql = `
     SELECT
   	  EMAIL, TEAM
     FROM
@@ -96,26 +67,26 @@ module.exports.accounts = {
       AND (EMAIL = '${obj.EMAIL}' OR ACCOUNT_UUID = '${obj.ACCOUNT_UUID}')
       AND PASSWORD = '${obj.PASSWORD}'
     `;
-    query(sql)
-      .then((r) => {
-        if (r.length == 0) {
-          new Response.notFound();
-        } else {
-          new Response(r).OK(res);
-        }
-      })
-      .catch((err) => {
-        console.log(err);
-        new Response().internalServerError(res);
-      });
-  },
+      query(sql)
+        .then((r) => {
+          if (r.length == 0) {
+            new Response(res).notFound();
+          } else {
+            new Response(res, r).OK();
+          }
+        })
+        .catch((err) => {
+          console.log(err);
+          new Response(res).internalServerError();
+        });
+    },
 
-  register: function (argArr, res) {
-    if (!isValid(argArr, "array", 4)) {
-      new Response().badRequest(res);
-      return false;
-    }
-    let sql = `
+    register: function (argArr, res) {
+      if (!isValid(argArr, "array", 4)) {
+        new Response(res).badRequest();
+        return false;
+      }
+      let sql = `
     INSERT INTO
       ACCOUNTS(
         ACCOUNT_UUID,
@@ -132,26 +103,26 @@ module.exports.accounts = {
         '${argArr[3]}'
       )
     `;
-    query(sql)
-      .then((r) => {
-        if (r.affectedRows == 0) {
-          new Response().notFound(res);
-        } else {
-          new Response(r).OK(res);
-        }
-      })
-      .catch((err) => {
-        console.log(err);
-        new Response().internalServerError(res);
-      });
-  },
+      query(sql)
+        .then((r) => {
+          if (r.affectedRows == 0) {
+            new Response(res).notFound();
+          } else {
+            new Response(res, r).OK();
+          }
+        })
+        .catch((err) => {
+          console.log(err);
+          new Response(res).internalServerError();
+        });
+    },
 
-  changePassword: function (obj, res) {
-    if (!isValid(obj, "object", 3)) {
-      new Response().badRequest(res);
-      return false;
-    }
-    let sql = `
+    changePassword: function (obj, res) {
+      if (!isValid(obj, "object", 3)) {
+        new Response(res).badRequest();
+        return false;
+      }
+      let sql = `
     UPDATE
       ACCOUNTS
     SET
@@ -160,19 +131,20 @@ module.exports.accounts = {
       AND ACCOUNT_UUID = '${obj.ACCOUNT_UUID}'
       AND PASSWORD = '${obj.CUR_PASSWORD}'
     `;
-    query(sql)
-      .then((r) => {
-        if (r.affectedRows == 0) {
-          res.send(new Response(404, null, "일치하는 정보 없음"));
-        } else {
-          res.send(
-            new Response(200, r.affectedRows, `${r.affectedRows}건 변경`)
-          );
-        }
-      })
-      .catch((err) => {
-        console.log(err);
-        new Response().internalServerError(res);
-      });
+      query(sql)
+        .then((r) => {
+          if (r.affectedRows == 0) {
+            new Response(res).notFound();
+          } else {
+            new Response(res, r).OK();
+          }
+        })
+        .catch((err) => {
+          console.log(err);
+          new Response(res).internalServerError(res);
+        });
+    },
   },
 };
+
+module.exports = DB;
