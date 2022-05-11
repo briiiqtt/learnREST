@@ -1,9 +1,9 @@
 const DB_NAMESPACE = {
   CONN: {
-    HOST: "127.0.0.1",
-    USER: "ROOT",
-    PASSWORD: "0000",
-    DATABASE: "AIG_SERVER_DEMO",
+    host: "127.0.0.1",
+    user: "root",
+    password: "0000",
+    database: "AIGEARS",
   },
   RES_MSG: {
     OK: "요청 성공적",

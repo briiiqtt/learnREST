@@ -1,7 +1,6 @@
 const DB_NAMESPACE = require("./DB_NAMESPACE");
 const mysql = require("mysql");
 const connection = mysql.createConnection(DB_NAMESPACE.CONN);
-
 const Response = require("./Response");
 
 const query = async function (sql) {
@@ -16,31 +15,41 @@ const query = async function (sql) {
   return await promise;
 };
 
-const where = function (objArr) {
-  if (!objArr) return null;
-  let str = ` 1=1`;
-  for (let obj of objArr) {
-    str += ` AND ${obj.colName} = '${obj.value}'`;
-  }
-  return str;
+const init = async function () {
+  let promise = new Promise((resolve, reject) => {
+    query(
+      `SELECT UPPER(TABLE_NAME) "TABLE_NAME" FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '${DB_NAMESPACE.CONN.database}';`
+    )
+      .then((r) => {
+        for (let i = 0; i < r.length; i++) {
+          query(
+            `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '${DB_NAMESPACE.CONN.database}' AND TABLE_NAME = '${r[i].TABLE_NAME}'`
+          ).then((r2) => {
+            let arr = [];
+            for (let row2 of r2) {
+              arr.push(row2.COLUMN_NAME);
+            }
+            DATABASE[r[i].TABLE_NAME] = {};
+            DATABASE[r[i].TABLE_NAME].columns = arr;
+            DATABASE[r[i].TABLE_NAME].tableName = r[i].TABLE_NAME;
+            if (i + 1 == r.length) {
+              resolve(DATABASE);
+            }
+          });
+        }
+      })
+      .catch((err) => reject(err));
+  });
+  return await promise;
 };
 
-const iterate = function (argArr) {
-  let str = "";
-  for (let arg of argArr) {
-    str += `, ${arg}`;
-  }
-  return str.substring(2);
+const DATABASE = {};
+
+const SQL = {
+  select() {},
+  insert() {},
+  update() {},
+  delete() {},
 };
 
-const DB = {
-  ACCOUNTS: {
-    // COLUMNS: ["ACCOUNT_UUID", "_IS_DELETED"],
-    // select() {},
-    // insert() {},
-    // update() {},
-    // delete() {},
-  },
-};
-
-module.exports = DB;
+module.exports = { init, SQL };
