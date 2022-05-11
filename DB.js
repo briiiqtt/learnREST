@@ -1,8 +1,28 @@
-const DB_NAMESPACE = require("./DB_NAMESPACE");
+const _NAMESPACE = require("./_NAMESPACE");
 const mysql = require("mysql");
-const connection = mysql.createConnection(DB_NAMESPACE.CONN);
+const connection = mysql.createConnection(_NAMESPACE.CONN);
+
 const Response = require("./Response");
 
+const querySingle = async function (sql) {
+  let promise = new Promise((resolve, reject) => {
+    if (sql.substring(0, 10).includes("SELECT")) {
+      //FIXME: 이러면안된다
+      reject("단일행 SELECT 전용임");
+      return false;
+    }
+    connection.query(sql, (err, rows, fields) => {
+      if (err) {
+        reject(err);
+      }
+      if (!(rows.length in [0, 1])) {
+        reject(rows);
+      }
+      resolve(rows[0]);
+    });
+  });
+  return await promise;
+};
 const query = async function (sql) {
   let promise = new Promise((resolve, reject) => {
     connection.query(sql, (err, rows, fields) => {
@@ -15,41 +35,130 @@ const query = async function (sql) {
   return await promise;
 };
 
-const init = async function () {
-  let promise = new Promise((resolve, reject) => {
-    query(
-      `SELECT UPPER(TABLE_NAME) "TABLE_NAME" FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '${DB_NAMESPACE.CONN.database}';`
-    )
-      .then((r) => {
-        for (let i = 0; i < r.length; i++) {
-          query(
-            `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '${DB_NAMESPACE.CONN.database}' AND TABLE_NAME = '${r[i].TABLE_NAME}'`
-          ).then((r2) => {
-            let arr = [];
-            for (let row2 of r2) {
-              arr.push(row2.COLUMN_NAME);
-            }
-            DATABASE[r[i].TABLE_NAME] = {};
-            DATABASE[r[i].TABLE_NAME].columns = arr;
-            DATABASE[r[i].TABLE_NAME].tableName = r[i].TABLE_NAME;
-            if (i + 1 == r.length) {
-              resolve(DATABASE);
-            }
-          });
+const sql = {
+  accounts: {
+    select(argObj, res) {
+      if (!argObj.account_uuid) {
+        new Response(res).badRequest();
+        return false;
+      }
+      let sql = `
+      SELECT
+        ACCOUNT_UUID, EMAIL, PASSWORD, AUTH, TEAM
+      FROM
+        ACCOUNTS
+      WHERE 1=1
+        AND _IS_DELETED = 0
+        AND ACCOUNT_UUID = '${argObj.account_uuid}'
+      `;
+      query(sql)
+        .then((r) => {
+          new Response(res, r).OK();
+        })
+        .catch((err) => {
+          console.error(_NAMESPACE.ERR, err);
+          new Response(res).internalServerError();
+        });
+    },
+    insert(argObj, res) {
+      if (!(argObj.account_uuid && argObj.email && argObj.password && argObj.team)) {
+        new Response(res).badRequest();
+        return false;
+      }
+      let sql = `
+      INSERT INTO
+        ACCOUNTS(
+          ACCOUNT_UUID, EMAIL, PASSWORD, TEAM
+        )
+        VALUES(
+          '${argObj.account_uuid}', '${argObj.email}', '${argObj.password}', '${argObj.team}'
+        )
+      `;
+      query(sql)
+        .then((r) => {
+          new Response(res, r.affectedRows).OK();
+        })
+        .catch((err) => {
+          console.error(_NAMESPACE.ERR, err);
+          new Response(res).internalServerError();
+        });
+    },
+    uuid: {
+      select(argObj, res) {
+        if (!argObj.email) {
+          new Response(res).badRequest();
+          return false;
         }
-      })
-      .catch((err) => reject(err));
-  });
-  return await promise;
+        let sql = `
+        SELECT
+          ACCOUNT_UUID
+        FROM
+          ACCOUNTS
+        WHERE 1=1
+          AND _IS_DELETED = 0
+          AND EMAIL = '${argObj.email}'
+        `;
+        querySingle(sql)
+          .then((r) => {
+            new Response(res, r).OK();
+          })
+          .catch((err) => {
+            console.error(_NAMESPACE.ERR, err);
+            new Response(res).internalServerError();
+          });
+      },
+    },
+    password: {
+      select(argObj, res) {
+        if (!argObj.account_uuid) {
+          new Response(res).badRequest();
+          return false;
+        }
+        let sql = `
+          SELECT
+            PASSWORD
+          FROM
+            ACCOUNTS
+          WHERE 1=1
+            AND _IS_DELETED = 0
+            AND ACCOUNT_UUID = '${argObj.account_uuid}'
+        `;
+        querySingle(sql)
+          .then((r) => {
+            new Response(res, r).OK();
+          })
+          .catch((err) => {
+            console.error(_NAMESPACE.ERR, err);
+            new Response(res).internalServerError();
+          });
+      },
+      update(argObj, res) {
+        if (!(argObj.account_uuid && argObj.password)) {
+          new Response(res).badRequest();
+          return false;
+        }
+        let sql = `
+          UPDATE
+            ACCOUNTS
+          SET
+            PASSWORD = ${argObj.password},
+            _UPDATED_AT = NOW()
+          WHERE
+            1=1
+            AND _IS_DELETED = 0
+            AND ACCOUNT_UUID = ${argObj.account_uuid}
+        `;
+        query(sql)
+          .then((r) => {
+            new Response(res, r.affectedRows).OK();
+          })
+          .catch((err) => {
+            console.error(_NAMESPACE.ERR, err);
+            new Response(res).internalServerError();
+          });
+      },
+    },
+  },
 };
 
-const DATABASE = {};
-
-const SQL = {
-  select() {},
-  insert() {},
-  update() {},
-  delete() {},
-};
-
-module.exports = { init, SQL };
+module.exports = { sql };
