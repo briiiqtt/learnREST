@@ -6,6 +6,7 @@ const Response = class {
     this.data = _data;
   }
   sendResponse() {
+    console.log(`응답 code: ${this.code}, message: ${this.message}, data: `, this.data)
     this.res.send({
       data: this.data,
       code: this.code,
@@ -16,6 +17,7 @@ const Response = class {
     this.res.status(200);
     this.code = 0;
     this.message = _NAMESPACE.RES_MSG.OK;
+    this.message += msg === undefined ? "" : `: ${msg}`;
     this.sendResponse();
   }
   badRequest(msg) {

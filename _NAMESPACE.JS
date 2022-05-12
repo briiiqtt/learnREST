@@ -3,7 +3,8 @@ const _NAMESPACE = {
     host: "127.0.0.1",
     user: "root",
     password: "0000",
-    database: "AIGEARS",
+    database: "aigears",
+    port: "53306"
   },
   RES_MSG: {
     OK: "요청 성공적",

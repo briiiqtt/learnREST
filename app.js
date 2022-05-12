@@ -13,9 +13,14 @@ app.use(express.urlencoded({ extended: false }));
 
 const db = require("./DB");
 
-app.listen((port = 80), () => {
+app.listen((port = 52530), () => {
   console.log(`server started, port: ${port}`);
 });
+
+app.route('/test').get((req,res)=>{
+	console.log('asdfasdfasdfasdf');
+	res.send('hi')
+	});
 
 app
   .route("/accounts")
